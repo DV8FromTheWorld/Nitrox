@@ -1,6 +1,8 @@
 ﻿using NitroxClient.MonoBehaviours;
+using NitroxModel.Core;
 using NitroxModel.DataStructures;
 using NitroxModel.DataStructures.Util;
+using NitroxModel.Helper;
 using UnityEngine;
 
 namespace NitroxClient.GameLogic.Bases.Spawning.BasePiece
@@ -15,9 +17,22 @@ namespace NitroxClient.GameLogic.Bases.Spawning.BasePiece
         protected override void SpawnPostProcess(Base latestBase, Int3 latestCell, GameObject finishedPiece)
         {
             bool builtLadderOnFloor = finishedPiece.name.Contains("Bottom");
-            Int3 cellToSearch = builtLadderOnFloor ? new Int3(latestCell.x, latestCell.y - 1, latestCell.z) : new Int3(latestCell.x, latestCell.y + 1, latestCell.z);
+            int searchDirection = builtLadderOnFloor ? -1 : 1;
+            
+            Int3 cellToSearch = Int3.zero;
+            Optional<GameObject> otherLadderPiece = Optional.Empty;
+            int searchOffset = searchDirection;
+            int maxY = NitroxServiceLocator.LocateService<IMap>().DimensionsInBatches.Y;
+            for (int i = 0; i < maxY; i++)
+            {
+                cellToSearch = new Int3(latestCell.x, latestCell.y + searchOffset, latestCell.z);
 
-            Optional<GameObject> otherLadderPiece = FindSecondLadderPiece(latestBase, cellToSearch);
+                if (!FindSecondLadderPiece(latestBase, cellToSearch, out otherLadderPiece) || otherLadderPiece.HasValue)
+                {
+                    break;
+                }
+                searchOffset += searchDirection;
+            }
 
             if (otherLadderPiece.HasValue)
             {
@@ -25,35 +40,43 @@ namespace NitroxClient.GameLogic.Bases.Spawning.BasePiece
                 // This happens because the ladder can be deconstructed from two locations (the top and bottom).
                 NitroxId id = NitroxEntity.GetId(finishedPiece);
                 NitroxEntity.SetNewId(otherLadderPiece.Value, id);
+                Log.Debug($"Successfully set new id to other piece: {otherLadderPiece.Value.name}, id={id}");
             }
             else
             {
-                Log.Info("Could not locate other ladder piece when searching cell: " + cellToSearch + " builtLadderOnFloor: " + builtLadderOnFloor);
+                Log.Error($"Could not locate other ladder piece when searching cells : {cellToSearch}, builtLadderOnFloor: {builtLadderOnFloor}");
             }
         }
 
-        private Optional<GameObject> FindSecondLadderPiece(Base latestBase, Int3 cellToSearch)
+        private bool FindSecondLadderPiece(Base latestBase, Int3 cellToSearch, out Optional<GameObject> piece)
         {
             Transform cellTransform = latestBase.GetCellObject(cellToSearch);
-
+            piece = Optional.Empty;
+            if (!cellTransform)
+            {
+                return false;
+            }
             foreach (Transform child in cellTransform)
             {
                 NitroxEntity id = child.GetComponent<NitroxEntity>();
                 BaseDeconstructable baseDeconstructable = child.GetComponent<BaseDeconstructable>();
-
                 bool isNewBasePiece = id == null && baseDeconstructable != null;
-
                 if (isNewBasePiece)
                 {
                     TechType techType = baseDeconstructable.recipe;
                     if (techType == TechType.BaseLadder)
                     {
-                        return Optional.Of(child.gameObject);
+                        piece = Optional.Of(child.gameObject);
+                        return true;
                     }
+                }
+                if (child.name.Contains("ConnectorLadder"))
+                {
+                    return true;
                 }
             }
 
-            return Optional.Empty;
+            return false;
         }
     }
 }
