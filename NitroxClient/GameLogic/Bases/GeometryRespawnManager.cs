@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using NitroxClient.GameLogic.Bases.Spawning.BasePiece;
 using NitroxClient.MonoBehaviours;
 using NitroxModel.DataStructures;
 using UnityEngine;
@@ -78,6 +79,9 @@ namespace NitroxClient.GameLogic.Bases
                 }
                 Log.Debug($"When respawning geometry, found face-based id to copy to new object [Key: {key}, Id: {id}]");
                 NitroxEntity.SetNewId(gameObject, id);
+
+                // If this piece has a NitroxId, it probably had a spawn processor run for it
+                BasePieceSpawnProcessor.ReRunSpawnProcessor(gameObject, id);
             }
         }
 
