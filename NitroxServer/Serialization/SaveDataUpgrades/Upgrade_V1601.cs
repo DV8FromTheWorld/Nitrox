@@ -25,5 +25,27 @@ namespace NitroxServer.Serialization.SaveDataUpgrades
                 modules.Add(itemId.ToString());
             }
         }
+
+        protected override void UpgradeBaseData(JObject data)
+        {
+            Action<JToken> upgradeRotationMetadata = basePieceList =>
+            {
+                foreach (JToken basePieceEntry in basePieceList)
+                {
+                    JToken rotationMetadata = basePieceEntry["RotationMetadata"]["value"];
+                    if (rotationMetadata.Type != JTokenType.Null)
+                    {
+                        rotationMetadata["$type"] = rotationMetadata["$type"].ToString()
+                             .Replace("AnchoredFaceRotationMetadata", "AnchoredFaceBuilderMetadata")
+                             .Replace("BaseModuleRotationMetadata", "BaseModuleBuilderMetadata")
+                             .Replace("CorridorRotationMetadata", "CorridorBuilderMetadata")
+                             .Replace("MapRoomRotationMetadata", "MapRoomBuilderMetadata");
+                    }
+                }
+            };
+
+            upgradeRotationMetadata(data["PartiallyConstructedPieces"]);
+            upgradeRotationMetadata(data["CompletedBasePieceHistory"]);
+        }
     }
 }
